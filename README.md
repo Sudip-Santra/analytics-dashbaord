@@ -186,6 +186,9 @@ Create a `.env` file in the project root:
 HOST=localhost
 PORT=5000
 
+# Base API URL
+VITE_API_URL=http://localhost:5000
+
 # JWT
 JWT_SECRET=your-secret-key-here-change-this
 
