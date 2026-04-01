@@ -29,7 +29,7 @@ app = FastAPI(title="Product Analytics API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5170"],
+    allow_origins=["http://localhost:5170", "https://analytics.intalix.in"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
