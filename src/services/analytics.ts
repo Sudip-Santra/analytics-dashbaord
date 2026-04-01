@@ -39,9 +39,3 @@ export async function fetchAnalytics(filters: AnalyticsFilters) {
   return data;
 }
 
-export async function trackFeatureClick(featureName: string) {
-  await apiFetch("/track", {
-    method: "POST",
-    body: { feature_name: featureName },
-  });
-}

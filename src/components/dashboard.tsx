@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { subDays, format } from "date-fns";
+import { format } from "date-fns";
 import type { DateRange } from "react-day-picker";
 import {
   Bar,
@@ -21,6 +21,7 @@ import {
   BarChart3,
   LogOut,
   X,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -35,7 +36,6 @@ import {
 } from "@/components/ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Badge } from "@/components/ui/badge";
 import {
   ChartContainer,
   ChartTooltip,
@@ -43,7 +43,8 @@ import {
 } from "@/components/ui/chart";
 import { cn } from "@/lib/utils";
 import { logout } from "@/services/auth";
-import { fetchAnalytics, trackFeatureClick, type FeatureData, type DailyData } from "@/services/analytics";
+import { fetchAnalytics, type FeatureData, type DailyData } from "@/services/analytics";
+import { enqueueClick, startTracker, stopTracker } from "@/services/tracker";
 
 const FEATURE_COLORS: Record<string, string> = {
   date_picker: "var(--chart-1)",
@@ -112,8 +113,8 @@ export default function Dashboard() {
   const savedFilters = useMemo(() => loadFiltersFromCookies(), []);
 
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
-    from: savedFilters?.dateFrom ? new Date(savedFilters.dateFrom) : subDays(new Date(), 90),
-    to: savedFilters?.dateTo ? new Date(savedFilters.dateTo) : new Date(),
+    from: savedFilters?.dateFrom ? new Date(savedFilters.dateFrom) : new Date(2026, 0, 1),
+    to: savedFilters?.dateTo ? new Date(savedFilters.dateTo) : new Date(2026, 3, 30),
   });
   const [ageFilter, setAgeFilter] = useState(savedFilters?.age || "all");
   const [genderFilter, setGenderFilter] = useState(savedFilters?.gender || "all");
@@ -124,14 +125,12 @@ export default function Dashboard() {
   const [totalClicks, setTotalClicks] = useState(0);
   const [uniqueUsers, setUniqueUsers] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  // Track interaction
-  const trackClick = useCallback(async (featureName: string) => {
-    try {
-      await trackFeatureClick(featureName);
-    } catch {
-      // silent — tracking should not disrupt UX
-    }
+  // Start/stop the batch tracker with this component
+  useEffect(() => {
+    startTracker();
+    return () => stopTracker();
   }, []);
 
   // Base filters object
@@ -185,6 +184,23 @@ export default function Dashboard() {
   // Re-fetch daily when selected feature changes
   useEffect(() => { fetchDailyForFeature(); }, [fetchDailyForFeature]);
 
+  // Auto-refresh every 10 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchOverview();
+      if (selectedFeature) fetchDailyForFeature();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, [fetchOverview, fetchDailyForFeature, selectedFeature]);
+
+  // Manual refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchOverview();
+    if (selectedFeature) await fetchDailyForFeature();
+    setRefreshing(false);
+  };
+
   // Save filters to cookies whenever they change
   useEffect(() => {
     saveFiltersToCookies({
@@ -198,8 +214,8 @@ export default function Dashboard() {
   const topFeature = featureData[0]?.feature ?? "N/A";
   const avgDaily =
     dailyData.length > 0
-      ? Math.round(dailyData.reduce((s, d) => s + d.clicks, 0) / dailyData.length)
-      : 0;
+      ? (dailyData.reduce((s, d) => s + d.clicks, 0) / dailyData.length).toFixed(2)
+      : "0.00";
 
   const handleLogout = async () => {
     try {
@@ -225,16 +241,10 @@ export default function Dashboard() {
               <p className="text-xs text-muted-foreground">Real-time usage dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <Badge variant="outline" className="text-xs">
-              <span className="size-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse" />
-              Live
-            </Badge>
             <Button variant="destructive" size="sm" onClick={handleLogout}>
               <LogOut className="size-4 mr-1.5" />
               Logout
             </Button>
-          </div>
         </div>
       </header>
 
@@ -258,7 +268,7 @@ export default function Dashboard() {
                         "w-70 justify-start text-left font-normal",
                         !dateRange && "text-muted-foreground"
                       )}
-                      onClick={() => trackClick("date_picker")}
+                      onClick={() => enqueueClick("date_picker")}
                     >
                       {dateRange?.from ? (
                         dateRange.to ? (
@@ -292,7 +302,7 @@ export default function Dashboard() {
                   <Users className="size-3.5" />
                   Age Group
                 </label>
-                <Select value={ageFilter} onValueChange={(v) => { setAgeFilter(v); trackClick("filter_age"); }}>
+                <Select value={ageFilter} onValueChange={(v) => { setAgeFilter(v); enqueueClick("filter_age"); }}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="All Ages" />
                   </SelectTrigger>
@@ -311,7 +321,7 @@ export default function Dashboard() {
                   <Users className="size-3.5" />
                   Gender
                 </label>
-                <Select value={genderFilter} onValueChange={(v) => { setGenderFilter(v); trackClick("filter_gender"); }}>
+                <Select value={genderFilter} onValueChange={(v) => { setGenderFilter(v); enqueueClick("filter_gender"); }}>
                   <SelectTrigger className="w-40">
                     <SelectValue placeholder="All Genders" />
                   </SelectTrigger>
@@ -329,7 +339,7 @@ export default function Dashboard() {
                 variant="destructive"
                 size="lg"
                 onClick={() => {
-                  setDateRange({ from: subDays(new Date(), 90), to: new Date() });
+                  setDateRange({ from: new Date(2026, 0, 1), to: new Date(2026, 3, 30) });
                   setAgeFilter("all");
                   setGenderFilter("all");
                   setSelectedFeature(null);
@@ -337,6 +347,17 @@ export default function Dashboard() {
               >
                 <X className="size-4 mr-1.5" />
                 Clear All Filters
+              </Button>
+
+              {/* Refresh */}
+              <Button
+                size="lg"
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <RefreshCw className={cn("size-4 mr-1.5", refreshing && "animate-spin")} />
+                {refreshing ? "Refreshing..." : "Refresh"}
               </Button>
             </div>
           </div>
@@ -467,7 +488,7 @@ export default function Dashboard() {
                         setSelectedFeature(
                           feature === selectedFeature ? null : feature
                         );
-                        trackClick("chart_bar");
+                        enqueueClick("chart_bar");
                       }
                     }}
                     shape={(props: BarShapeProps) => {

@@ -19,7 +19,7 @@ def parse_naive_dt(iso_str: str) -> datetime:
     return dt.replace(tzinfo=None)
 
 
-class TrackRequest(BaseModel):
+class TrackClick(BaseModel):
     feature_name: str
 
     @field_validator("feature_name")
@@ -30,16 +30,30 @@ class TrackRequest(BaseModel):
         return v
 
 
+class TrackBatchRequest(BaseModel):
+    clicks: list[TrackClick]
+
+    @field_validator("clicks")
+    @classmethod
+    def validate_batch_size(cls, v: list[TrackClick]) -> list[TrackClick]:
+        if len(v) == 0:
+            raise ValueError("clicks array cannot be empty")
+        if len(v) > 50:
+            raise ValueError("Maximum 50 clicks per batch")
+        return v
+
+
 @router.post("/track")
-async def track(body: TrackRequest, request: Request):
+async def track_batch(body: TrackBatchRequest, request: Request):
     payload = await get_current_user(request)
     pool = get_pool(request)
-    await pool.execute(
+    user_id = uuid.UUID(payload["sub"])
+    rows = [(user_id, click.feature_name) for click in body.clicks]
+    await pool.executemany(
         "INSERT INTO feature_clicks (user_id, feature_name) VALUES ($1, $2)",
-        uuid.UUID(payload["sub"]),
-        body.feature_name,
+        rows,
     )
-    return {"message": "Tracked"}
+    return {"message": f"Tracked {len(rows)} clicks"}
 
 
 @router.get("/analytics")
