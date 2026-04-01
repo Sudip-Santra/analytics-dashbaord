@@ -154,11 +154,13 @@ These ensure that the `GET /analytics` endpoint performs index scans, not full t
 ### 1. Clone the Repository
 
 ```bash
-git clone <repository-url>
-cd Interactive-Product-Analytics-Dashboard
+git clone https://github.com/Sudip-Santra/analytics-dashbaord.git
+cd analytics-dashbaord
 ```
 
 ### 2. Setup the Database
+
+**Option A: Using psql (CLI)**
 
 ```bash
 # Create the database
@@ -167,6 +169,13 @@ psql -U postgres -c "CREATE DATABASE analytics_dashboard;"
 # Run the schema
 psql -U postgres -d analytics_dashboard -f backend/sql/create_tables.sql
 ```
+
+**Option B: Using pgAdmin 4 (GUI)**
+
+1. Open pgAdmin 4 and connect to your PostgreSQL server
+2. Right-click **Databases** → **Create** → **Database** → name it `analytics_dashboard`
+3. Open the **Query Tool** on the new database
+4. Copy-paste the contents of `backend/sql/create_tables.sql` into the query editor and click **Execute (F5)**
 
 ### 3. Configure Environment Variables
 
