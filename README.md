@@ -154,8 +154,8 @@ These ensure that the `GET /analytics` endpoint performs index scans, not full t
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Sudip-Santra/analytics-dashbaord.git
-cd analytics-dashbaord
+git clone https://github.com/Sudip-Santra/analytics-dashboard.git
+cd analytics-dashboard
 ```
 
 ### 2. Setup the Database
